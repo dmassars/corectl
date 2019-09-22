@@ -69,7 +69,7 @@ jobs:
             docker cp ./test/rules/ $ENGINE_ABAC_CONTAINER_ID:/
             # Execute tests
             docker exec $TEST_CONTAINER /bin/bash -c 'cd /corectl && go test ./test/corectl_integration_test.go --engineStd $TEST_HOST:9076 --engineJwt $TEST_HOST:9176 --engineAbac $TEST_HOST:9276 --engineBadLicenseServer $TEST_HOST:9376 '
-            docker exec $TEST_CONTAINER /bin/bash -c 'cd /corectl && go test ./test/corectl_bombardment_test.go --engineStd $TEST_HOST:9076 --engineJwt $TEST_HOST:9176 --engineAbac $TEST_HOST:9276 --engineBadLicenseServer $TEST_HOST:9376 '
+            docker exec $TEST_CONTAINER /bin/bash -c 'cd /corectl && go test ./test/corectl_bombard_test.go --engineStd $TEST_HOST:9076 --engineJwt $TEST_HOST:9176 --engineAbac $TEST_HOST:9276 --engineBadLicenseServer $TEST_HOST:9376 '
 
   validate:
     working_directory: ~/corectl
