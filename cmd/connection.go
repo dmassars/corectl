@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/corectl/printer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,10 +16,10 @@ var setConnectionsCmd = &cobra.Command{
 	Example: "corectl connection set ./my-connections.yml",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, true, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, true, false)
 		separateConnectionsFile := args[0]
 		if separateConnectionsFile == "" {
-			internal.FatalError("no connections config file specified")
+			log.Fatalln("no connections config file specified")
 		}
 		internal.SetupConnections(rootCtx, state.Doc, separateConnectionsFile)
 		if !viper.GetBool("no-save") {
@@ -39,11 +38,11 @@ corectl connection rm ID-1
 corectl connection rm ID-1 ID-2`,
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		for _, connection := range args {
 			err := state.Doc.DeleteConnection(rootCtx, connection)
 			if err != nil {
-				internal.FatalErrorf("could not remove connection '%s': %s", connection, err)
+				log.Fatalf("could not remove connection '%s': %s\n", connection, err)
 			}
 		}
 		if !viper.GetBool("no-save") {
@@ -52,7 +51,7 @@ corectl connection rm ID-1 ID-2`,
 	},
 }
 
-var listConnectionsCmd = &cobra.Command{
+var listConnectionsCmd = withLocalFlags(&cobra.Command{
 	Use:     "ls",
 	Args:    cobra.ExactArgs(0),
 	Short:   "Print a list of all connections in the current app",
@@ -60,14 +59,14 @@ var listConnectionsCmd = &cobra.Command{
 	Example: "corectl connection ls",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		connections, err := state.Doc.GetConnections(rootCtx)
 		if err != nil {
-			internal.FatalErrorf("could not retrieve list of connections: %s", err)
+			log.Fatalf("could not retrieve list of connections: %s\n", err)
 		}
 		printer.PrintConnections(connections, viper.GetBool("bash"))
 	},
-}
+}, "quiet")
 
 var getConnectionCmd = &cobra.Command{
 	Use:     "get <connection-id>",
@@ -77,11 +76,10 @@ var getConnectionCmd = &cobra.Command{
 	Example: "corectl connection get CONNECTION-ID",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		connection, err := state.Doc.GetConnection(rootCtx, args[0])
 		if err != nil {
-			fmt.Printf("%T\n", err)
-			internal.FatalErrorf("could not retrieve connection '%s': %s", args[0], err)
+			log.Fatalf("could not retrieve connection '%s': %s\n", args[0], err)
 		}
 		printer.PrintConnection(connection)
 	},

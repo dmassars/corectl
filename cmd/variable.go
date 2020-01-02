@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/corectl/printer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,9 +18,9 @@ var setVariablesCmd = withLocalFlags(&cobra.Command{
 	Run: func(ccmd *cobra.Command, args []string) {
 		commandLineVariables := args[0]
 		if commandLineVariables == "" {
-			internal.FatalError("no variables specified")
+			log.Fatalln("no variables specified")
 		}
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, true, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, true, false)
 		internal.SetVariables(rootCtx, state.Doc, commandLineVariables)
 		if !viper.GetBool("no-save") {
 			internal.Save(rootCtx, state.Doc)
@@ -35,13 +36,13 @@ var removeVariableCmd = withLocalFlags(&cobra.Command{
 	Example: "corectl variable rm NAME-1",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		for _, entity := range args {
 			destroyed, err := state.Doc.DestroyVariableByName(rootCtx, entity)
 			if err != nil {
-				internal.FatalErrorf("could not remove generic variable '%s': %s", entity, err)
+				log.Fatalf("could not remove generic variable '%s': %s\n", entity, err)
 			} else if !destroyed {
-				internal.FatalErrorf("could not remove generic variable '%s'", entity)
+				log.Fatalf("could not remove generic variable '%s'\n", entity)
 			}
 		}
 		if !viper.GetBool("no-save") {
@@ -50,7 +51,7 @@ var removeVariableCmd = withLocalFlags(&cobra.Command{
 	},
 }, "no-save")
 
-var listVariablesCmd = &cobra.Command{
+var listVariablesCmd = withLocalFlags(&cobra.Command{
 	Use:     "ls",
 	Args:    cobra.ExactArgs(0),
 	Short:   "Print a list of all generic variables in the current app",
@@ -58,11 +59,11 @@ var listVariablesCmd = &cobra.Command{
 	Example: "corectl variable ls",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		items := internal.ListVariables(state.Ctx, state.Doc)
 		printer.PrintNamedItemsList(items, viper.GetBool("bash"), true)
 	},
-}
+}, "quiet")
 
 var getVariablePropertiesCmd = withLocalFlags(&cobra.Command{
 	Use:     "properties <variable-name>",
@@ -72,7 +73,7 @@ var getVariablePropertiesCmd = withLocalFlags(&cobra.Command{
 	Example: "corectl variable properties VARIABLE-NAME",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.PrintGenericEntityProperties(state, args[0], "variable", viper.GetBool("minimum"))
 	},
 }, "minimum")
@@ -85,7 +86,7 @@ var getVariableLayoutCmd = &cobra.Command{
 	Example: "corectl variable layout VARIABLE-NAME",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.PrintGenericEntityLayout(state, args[0], "variable")
 	},
 }

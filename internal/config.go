@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/spf13/viper"
 	leven "github.com/texttheater/golang-levenshtein/levenshtein"
 	"gopkg.in/yaml.v2"
@@ -44,12 +45,12 @@ func GetConnectionsConfig() *ConnectionsConfig {
 	conn := viper.Get("connections")
 	switch conn.(type) {
 	case string:
-		// Read connections from a separate yaml file
+		// Read connections from a separate yaml file.
 		connFile := RelativeToProject(conn.(string))
 		config = ReadConnectionsFile(connFile)
 	case map[string]interface{}:
-		// Read connections from config file
-		// Not using viper due to camel case insensitivity
+		// Read connections from config file.
+		// Not using viper due to camel case insensitivity.
 		config = ReadConnectionsFile(configFile)
 	}
 	return config
@@ -86,22 +87,22 @@ func convertMap(m map[interface{}]interface{}) (map[string]interface{}, error) {
 func ReadConnectionsFile(path string) *ConnectionsConfig {
 	source, err := ioutil.ReadFile(path)
 	if err != nil {
-		FatalErrorf("could not find connections config file '%s'", path)
+		log.Fatalf("could not find connections config file '%s'\n", path)
 	}
 	tempConfig := map[interface{}]interface{}{}
 	err = yaml.Unmarshal(source, &tempConfig)
 	if err != nil {
-		FatalErrorf("invalid syntax in connections config file '%s': %s", path, err)
+		log.Fatalf("invalid syntax in connections config file '%s': %s\n", path, err)
 	}
 	err = subEnvVars(&tempConfig)
 	if err != nil {
-		FatalErrorf("bad substitution in '%s': %s", path, err)
+		log.Fatalf("bad substitution in '%s': %s\n", path, err)
 	}
 	config := &ConnectionsConfig{}
 	if strConfig, err := convertMap(tempConfig); err == nil {
 		reMarshal(strConfig, config)
 	} else {
-		FatalErrorf("could not parse connections config file '%s': %s", path, err)
+		log.Fatalf("could not parse connections config file '%s': %s\n", path, err)
 	}
 	return config
 }
@@ -115,7 +116,7 @@ func ReadConfig(explicitConfigFile, certPath string, withContext bool) {
 	if explicitConfigFile != "" {
 		explicitConfigFile, err = toAbsPath(strings.TrimSpace(explicitConfigFile))
 		if err != nil {
-			FatalErrorf("unexpected error when converting to absolute filepath: %s", err)
+			log.Fatalf("unexpected error when converting to absolute filepath: %s\n", err)
 		}
 		configFile = explicitConfigFile
 	} else {
@@ -124,7 +125,7 @@ func ReadConfig(explicitConfigFile, certPath string, withContext bool) {
 	if certPath != "" {
 		certPath, err = toAbsPath(strings.TrimSpace(certPath))
 		if err != nil {
-			FatalErrorf("unexpected error when converting to absolute filepath: %s", err)
+			log.Fatalf("unexpected error when converting to absolute filepath: %s\n", err)
 		}
 	}
 	// If there is a config file or context should be used
@@ -135,20 +136,20 @@ func ReadConfig(explicitConfigFile, certPath string, withContext bool) {
 	if certPath != "" {
 		viper.Set("certificates", certPath)
 	}
-	InitLogOutput() // sets json, verbose and traffic
+	log.Init() // sets json, verbose and traffic
 	switch {
 	case configFile != "":
 		ConfigDir = filepath.Dir(configFile)
-		LogVerbose("Using config file: " + configFile)
+		log.Verboseln("Using config file: " + configFile)
 	case withContext:
-		LogVerbose("No config file specified, using context.")
+		log.Verboseln("No config file specified, using context.")
 	default:
-		LogVerbose("No config file specified, using default values.")
+		log.Verboseln("No config file specified, using default values.")
 	}
 }
 
 // ReadCertificates reads and loads the specified certificates
-func ReadCertificates(certificatesPath string) *tls.Config {
+func ReadCertificates(tlsClientConfig *tls.Config, certificatesPath string) *tls.Config {
 	// Read client and root certificates.
 	certPath := RelativeToProject(certificatesPath)
 	certFile := certPath + "/client.pem"
@@ -157,24 +158,21 @@ func ReadCertificates(certificatesPath string) *tls.Config {
 
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		FatalError("Failed to load client certificate: ", err)
+		log.Fatalln("could not load client certificate: ", err)
 	}
 
 	caCert, err := ioutil.ReadFile(caFile)
 	if err != nil {
-		FatalError("Failed to read root certificate: ", err)
+		log.Fatalln("could not read root certificate: ", err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	// Setup TLS configuration.
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            caCertPool,
-	}
+	// Setup TLS cert configuration.
+	tlsClientConfig.Certificates = []tls.Certificate{cert}
+	tlsClientConfig.RootCAs = caCertPool
 
-	return tlsConfig
+	return tlsClientConfig
 }
 
 // AddValidProp adds the given property to the set of valid properties.
@@ -191,12 +189,12 @@ func readConfig(configPath string, withContext bool) {
 	if configPath != "" {
 		source, err := ioutil.ReadFile(configPath)
 		if err != nil {
-			FatalErrorf("could not find config file '%s'", configPath)
+			log.Fatalf("could not find config file '%s'\n", configPath)
 		}
 
 		err = yaml.Unmarshal(source, config)
 		if err != nil {
-			FatalErrorf("invalid syntax in config file '%s': %s", configPath, err)
+			log.Fatalf("invalid syntax in config file '%s': %s\n", configPath, err)
 		}
 	}
 	// Merge before validation and env substitution since it might not be needed due to context.
@@ -206,16 +204,16 @@ func readConfig(configPath string, withContext bool) {
 	validateProps(*config, configPath)
 	err := subEnvVars(config)
 	if err != nil {
-		FatalErrorf("bad substitution in '%s': %s", configPath, err)
+		log.Fatalf("bad substitution in '%s': %s\n", configPath, err)
 	}
 	configBytes, err := yaml.Marshal(config)
 	if err != nil {
-		FatalErrorf("unexpected error after parsing config: %s", err)
+		log.Fatalf("unexpected error after parsing config: %s\n", err)
 	}
 	viper.SetConfigType("yaml")
 	err = viper.ReadConfig(bytes.NewBuffer(configBytes))
 	if err != nil {
-		FatalErrorf("unexpected error after parsing config: %s", err)
+		log.Fatalf("unexpected error after parseing config: %s\n", err)
 	}
 }
 
@@ -231,7 +229,7 @@ func findConfigFile(fileName string) string {
 	if configFile != "" {
 		absConfig, err := filepath.Abs(configFile) // Convert to abs path
 		if err != nil {
-			FatalErrorf("unexpected error when converting to absolute filepath: %s", err)
+			log.Fatalf("unexpected error when converting to absolute filepath: %s\n", err)
 		}
 		configFile = absConfig
 	}
@@ -272,7 +270,7 @@ func validateProps(config map[interface{}]interface{}, configPath string) {
 			errorMessage = append(errorMessage,
 				fmt.Sprintf("%systerious properties: %s", prepend, strings.Join(invalidProps, ", ")))
 		}
-		FatalError(strings.Join(errorMessage, "\n"))
+		log.Fatalln(strings.Join(errorMessage, "\n"))
 	}
 }
 
@@ -317,8 +315,6 @@ func getSuggestion(word string, validProps map[string]struct{}) string {
 }
 
 func mergeContext(config *map[interface{}]interface{}) {
-	// TODO: Create some sort of log buffer so verbose logs can be added
-	// before the config is complete.
 	contextHandler := NewContextHandler()
 	contextName := viper.GetString("context")
 
@@ -332,11 +328,11 @@ func mergeContext(config *map[interface{}]interface{}) {
 		return
 	}
 
-	LogVerbose("Merging config with context: " + contextName)
+	log.Verboseln("Merging config with context: " + contextName)
 
 	for k, v := range context.ToMap() {
 		if _, ok := (*config)[k]; ok {
-			fmt.Printf("Warning: property '%s' exists in both current context and config, using property from config\n", k)
+			log.Warnf("Property '%s' exists in both current context and config, using property from config\n", k)
 		} else {
 			(*config)[k] = v
 		}

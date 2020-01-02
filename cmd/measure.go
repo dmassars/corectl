@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/corectl/printer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,9 +18,9 @@ var setMeasuresCmd = withLocalFlags(&cobra.Command{
 	Run: func(ccmd *cobra.Command, args []string) {
 		commandLineMeasures := args[0]
 		if commandLineMeasures == "" {
-			internal.FatalError("no measures specified")
+			log.Fatalln("no measures specified")
 		}
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, true, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, true, false)
 		internal.SetMeasures(rootCtx, state.Doc, commandLineMeasures)
 		if !viper.GetBool("no-save") {
 			internal.Save(rootCtx, state.Doc)
@@ -35,13 +36,13 @@ var removeMeasureCmd = withLocalFlags(&cobra.Command{
 	Example: "corectl measure rm ID-1 ID-2",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		for _, entity := range args {
 			destroyed, err := state.Doc.DestroyMeasure(rootCtx, entity)
 			if err != nil {
-				internal.FatalErrorf("could not remove generic measure '%s': %s", entity, err)
+				log.Fatalf("could not remove generic measure '%s': %s\n", entity, err)
 			} else if !destroyed {
-				internal.FatalErrorf("could not remove generic measure '%s'", entity)
+				log.Fatalf("could not remove generic measure '%s'\n", entity)
 			}
 		}
 		if !viper.GetBool("no-save") {
@@ -50,7 +51,7 @@ var removeMeasureCmd = withLocalFlags(&cobra.Command{
 	},
 }, "no-save")
 
-var listMeasuresCmd = &cobra.Command{
+var listMeasuresCmd = withLocalFlags(&cobra.Command{
 	Use:     "ls",
 	Args:    cobra.ExactArgs(0),
 	Short:   "Print a list of all generic measures in the current app",
@@ -58,11 +59,11 @@ var listMeasuresCmd = &cobra.Command{
 	Example: "corectl measure ls",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		items := internal.ListMeasures(state.Ctx, state.Doc)
 		printer.PrintNamedItemsList(items, viper.GetBool("bash"), false)
 	},
-}
+}, "quiet")
 
 var getMeasurePropertiesCmd = withLocalFlags(&cobra.Command{
 	Use:     "properties <measure-id>",
@@ -72,7 +73,7 @@ var getMeasurePropertiesCmd = withLocalFlags(&cobra.Command{
 	Example: "corectl measure properties MEASURE-ID",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.PrintGenericEntityProperties(state, args[0], "measure", viper.GetBool("minimum"))
 	},
 }, "minimum")
@@ -85,7 +86,7 @@ var getMeasureLayoutCmd = &cobra.Command{
 	Example: "corectl measure layout MEASURE-ID",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.PrintGenericEntityLayout(state, args[0], "measure")
 	},
 }

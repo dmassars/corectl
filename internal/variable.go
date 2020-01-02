@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/enigma-go"
 )
 
+// Variable qix object struct
 type Variable struct {
 	Info *enigma.NxInfo `json:"qInfo,omitempty"`
 	Name string         `json:"qName,omitempty"`
@@ -53,7 +55,7 @@ func ListVariables(ctx context.Context, doc *enigma.Doc) []NamedItem {
 	layout, _ := sessionObject.GetLayout(ctx)
 	result := []NamedItem{}
 	for _, item := range layout.VariableList.Items {
-		result = append(result, NamedItem{Title: item.Name, Id: item.Info.Id})
+		result = append(result, NamedItem{Title: item.Name, ID: item.Info.Id})
 	}
 	return result
 }
@@ -62,26 +64,26 @@ func ListVariables(ctx context.Context, doc *enigma.Doc) []NamedItem {
 func SetVariables(ctx context.Context, doc *enigma.Doc, commandLineGlobPattern string) {
 	paths, err := getEntityPaths(commandLineGlobPattern, "variables")
 	if err != nil {
-		FatalError("could not interpret glob pattern: ", err)
+		log.Fatalln("could not interpret glob pattern: ", err)
 	}
 	for _, path := range paths {
 		rawEntities, err := parseEntityFile(path)
 		if err != nil {
-			FatalErrorf("could not parse file %s: %s", path, err)
+			log.Fatalf("could not parse file %s: %s\n", path, err)
 		}
 		for _, raw := range rawEntities {
 			var variable Variable
 			err := json.Unmarshal(raw, &variable)
 			if err != nil {
-				FatalErrorf("could not parse data in file %s: %s", path, err)
+				log.Fatalf("could not parse data in file %s: %s\n", path, err)
 			}
 			err = variable.validate()
 			if err != nil {
-				FatalErrorf("validation error in file %s: %s", path, err)
+				log.Fatalf("validation error in file %s: %s\n", path, err)
 			}
 			err = setVariable(ctx, doc, variable.Name, raw)
 			if err != nil {
-				FatalError(err)
+				log.Fatalln(err)
 			}
 		}
 	}
@@ -93,13 +95,13 @@ func setVariable(ctx context.Context, doc *enigma.Doc, variableName string, raw 
 		return err
 	}
 	if variable.Handle != 0 {
-		LogVerbose("Updating variable " + variableName)
+		log.Verboseln("Updating variable " + variableName)
 		err = variable.SetPropertiesRaw(ctx, raw)
 		if err != nil {
 			return fmt.Errorf("could not update %s with %s: %s", "variable", variableName, err)
 		}
 	} else {
-		LogVerbose("Creating variable " + variableName)
+		log.Verboseln("Creating variable " + variableName)
 		_, err = doc.CreateVariableExRaw(ctx, raw)
 		if err != nil {
 			return fmt.Errorf("could not create %s with %s: %s", "variable", variableName, err)

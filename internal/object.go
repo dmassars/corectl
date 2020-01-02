@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/enigma-go"
 )
 
+// Object is a struct describing the generic object
 type Object struct {
 	Info       *enigma.NxInfo                  `json:"qInfo,omitempty"`
 	Properties *enigma.GenericObjectProperties `json:"qProperty,omitempty"`
@@ -39,6 +41,7 @@ func (o Object) validate() error {
 	return nil
 }
 
+// ListObjects fetches all generic objects and returns them sorted in an array
 func ListObjects(ctx context.Context, doc *enigma.Doc) []NamedItemWithType {
 	allInfos, _ := doc.GetAllInfos(ctx)
 	unsortedResult := make(map[string]*NamedItemWithType)
@@ -54,7 +57,7 @@ func ListObjects(ctx context.Context, doc *enigma.Doc) []NamedItemWithType {
 				rawProps, _ := object.GetPropertiesRaw(ctx)
 				propsWithTitle := &PropsWithTitle{}
 				json.Unmarshal(rawProps, propsWithTitle)
-				waitChannel <- &NamedItemWithType{Title: propsWithTitle.Title, Id: item.Id, Type: item.Type}
+				waitChannel <- &NamedItemWithType{Title: propsWithTitle.Title, ID: item.Id, Type: item.Type}
 			} else {
 				waitChannel <- nil
 			}
@@ -64,8 +67,8 @@ func ListObjects(ctx context.Context, doc *enigma.Doc) []NamedItemWithType {
 	for range allInfos {
 		item := <-waitChannel
 		if item != nil {
-			keys = append(keys, item.Id)
-			unsortedResult[item.Id] = item
+			keys = append(keys, item.ID)
+			unsortedResult[item.ID] = item
 		}
 	}
 	//Loop over the keys that are sorted on qId and fetch the result for each object
@@ -81,12 +84,12 @@ func ListObjects(ctx context.Context, doc *enigma.Doc) []NamedItemWithType {
 func SetObjects(ctx context.Context, doc *enigma.Doc, commandLineGlobPattern string) {
 	paths, err := getEntityPaths(commandLineGlobPattern, "objects")
 	if err != nil {
-		FatalError("could not interpret glob pattern: ", err)
+		log.Fatalln("could not interpret glob pattern: ", err)
 	}
 	for _, path := range paths {
 		rawEntities, err := parseEntityFile(path)
 		if err != nil {
-			FatalErrorf("could not parse file %s: %s", path, err)
+			log.Fatalf("could not parse file %s: %s\n", path, err)
 		}
 
 		// Run in parallel
@@ -114,13 +117,13 @@ func SetObjects(ctx context.Context, doc *enigma.Doc, commandLineGlobPattern str
 		for range rawEntities {
 			err := <-ch
 			if err != nil {
-				fmt.Printf("ERROR " + err.Error())
+				log.Errorln(err)
 				success = false
 			}
 		}
 
 		if !success {
-			FatalError("One or more objects failed to be created or updated")
+			log.Fatalln("One or more objects failed to be created or updated")
 		}
 	}
 }
@@ -140,22 +143,22 @@ func setObject(ctx context.Context, doc *enigma.Doc, info *enigma.NxInfo, props 
 	}
 	if object.Handle != 0 {
 		if isGenericObjectEntry {
-			LogVerbose("Updating object " + objectID + " using SetFullPropertyTree")
+			log.Verboseln("Updating object " + objectID + " using SetFullPropertyTree")
 			err = object.SetFullPropertyTreeRaw(ctx, raw)
 		} else {
-			LogVerbose("Updating object " + objectID + " using SetProperties")
+			log.Verboseln("Updating object " + objectID + " using SetProperties")
 			err = object.SetPropertiesRaw(ctx, raw)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to update %s %s: %s", "object", objectID, err)
 		}
 	} else {
-		LogVerbose("Creating object " + objectID)
+		log.Verboseln("Creating object " + objectID)
 		if isGenericObjectEntry {
 			var createdObject *enigma.GenericObject
 			objectType := props.Info.Type
 			createdObject, err = doc.CreateObject(ctx, &enigma.GenericObjectProperties{Info: &enigma.NxInfo{Id: objectID, Type: objectType}})
-			LogVerbose("Setting object  " + objectID + " using SetFullPropertyTree")
+			log.Verboseln("Setting object  " + objectID + " using SetFullPropertyTree")
 			err = createdObject.SetFullPropertyTreeRaw(ctx, raw)
 		} else {
 			_, err = doc.CreateObjectRaw(ctx, raw)

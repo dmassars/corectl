@@ -3,7 +3,7 @@
   "info": {
     "title": "Specification for corectl",
     "description": "corectl contains various commands to interact with the Qlik Associative Engine. See respective command for more information",
-    "version": "1.3.0",
+    "version": "1.5.3-dev",
     "license": "MIT"
   },
   "clispec": "0.1.0",
@@ -36,6 +36,10 @@
       "description": "Http headers to use when connecting to Qlik Associative Engine",
       "default": "[]"
     },
+    "insecure": {
+      "description": "Enabling insecure will make it possible to connect using self signed certificates",
+      "default": "false"
+    },
     "json": {
       "description": "Returns output in JSON format if possible, disables verbose and traffic output",
       "default": "false"
@@ -65,10 +69,24 @@
       "commands": {
         "import": {
           "description": "Import the specified app into the engine, returns the ID of the created app",
-          "x-qlik-stability": "experimental"
+          "x-qlik-stability": "experimental",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "ls": {
-          "description": "Print a list of all apps available in the current engine"
+          "description": "Print a list of all apps available in the current engine",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "rm": {
           "description": "Remove the specified app",
@@ -126,6 +144,9 @@
     },
     "build": {
       "flags": {
+        "app-properties": {
+          "description": "Path to a json file containing the app properties"
+        },
         "bookmarks": {
           "description": "A list of generic bookmark json paths"
         },
@@ -184,7 +205,14 @@
           "description": "Show the properties for a specific connection"
         },
         "ls": {
-          "description": "Print a list of all connections in the current app"
+          "description": "Print a list of all connections in the current app",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "rm": {
           "description": "Remove one or many connections from the app"
@@ -203,6 +231,17 @@
         },
         "get": {
           "description": "Get context, current context by default"
+        },
+        "login": {
+          "description": "Login and set cookie for the named context\n\t\nThis is only applicable when connecting to 'Qlik Sense Enterprise for Windows' through its proxy using HTTPS.\nIf no 'context-name' is used as argument the 'current-context' defined in the config will be used instead.",
+          "flags": {
+            "password": {
+              "description": "Password to be used when logging in to Qlik Sense Enterprise (use with caution)"
+            },
+            "user": {
+              "description": "Username to be used when logging in to Qlik Sense Enterprise"
+            }
+          }
         },
         "ls": {
           "description": "List all contexts"
@@ -230,7 +269,14 @@
           "description": "Evaluate the layout of an generic dimension"
         },
         "ls": {
-          "description": "Print a list of all generic dimensions in the current app"
+          "description": "Print a list of all generic dimensions in the current app",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "properties": {
           "description": "Print the properties of the generic dimension",
@@ -265,7 +311,14 @@
       "description": "Evaluate a list of measures and dimensions. To evaluate a measure for a specific dimension use the \u003cmeasure\u003e by \u003cdimension\u003e notation. If dimensions are omitted then the eval will be evaluated over all dimensions."
     },
     "fields": {
-      "description": "Print all the fields in an app, and for each field also some sample content, tags and and number of values"
+      "description": "Print all the fields in an app, and for each field also some sample content, tags and and number of values",
+      "flags": {
+        "quiet": {
+          "alias": "q",
+          "description": "Only print IDs. Useful for scripting",
+          "default": "false"
+        }
+      }
     },
     "generate-docs": {
       "description": "Generate markdown docs based on cobra commands"
@@ -293,7 +346,14 @@
           "description": "Evaluate the layout of an generic measure and prints in JSON format"
         },
         "ls": {
-          "description": "Print a list of all generic measures in the current app"
+          "description": "Print a list of all generic measures in the current app",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "properties": {
           "description": "Print the properties of the generic measure",
@@ -337,11 +397,22 @@
           "description": "Evaluate the hypercube layout of the generic object"
         },
         "ls": {
-          "description": "Print a list of all generic objects in the current app"
+          "description": "Print a list of all generic objects in the current app",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "properties": {
           "description": "Print the properties of the generic object in JSON format",
           "flags": {
+            "full": {
+              "description": "Using 'GetFullPropertyTree' to retrieve properties for children as well",
+              "default": "false"
+            },
             "minimum": {
               "description": "Only print properties required by engine",
               "default": "false"
@@ -411,7 +482,14 @@
           "description": "Add an alternate states in the current app"
         },
         "ls": {
-          "description": "Print a list of all alternate states in the current app"
+          "description": "Print a list of all alternate states in the current app",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "rm": {
           "description": "Removes an alternate state in the current app"
@@ -445,7 +523,14 @@
           "description": "Evaluate the layout of an generic variable"
         },
         "ls": {
-          "description": "Print a list of all generic variables in the current app"
+          "description": "Print a list of all generic variables in the current app",
+          "flags": {
+            "quiet": {
+              "alias": "q",
+              "description": "Only print IDs. Useful for scripting",
+              "default": "false"
+            }
+          }
         },
         "properties": {
           "description": "Print the properties of the generic variable",

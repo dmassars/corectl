@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/corectl/printer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -18,9 +19,9 @@ The JSON objects can be in either the GenericObjectProperties format or the Gene
 	Run: func(ccmd *cobra.Command, args []string) {
 		commandLineObjects := args[0]
 		if commandLineObjects == "" {
-			internal.FatalError("no objects specified")
+			log.Fatalln("no objects specified")
 		}
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, true, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, true, false)
 		internal.SetObjects(rootCtx, state.Doc, commandLineObjects)
 		if !viper.GetBool("no-save") {
 			internal.Save(rootCtx, state.Doc)
@@ -36,13 +37,13 @@ var removeObjectCmd = withLocalFlags(&cobra.Command{
 	Example: "corectl object rm ID-1 ID-2",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		for _, entity := range args {
 			destroyed, err := state.Doc.DestroyObject(rootCtx, entity)
 			if err != nil {
-				internal.FatalErrorf("could not remove generic object '%s': %s", entity, err)
+				log.Fatalf("could not remove generic object '%s': %s\n", entity, err)
 			} else if !destroyed {
-				internal.FatalErrorf("could not remove generic object '%s'", entity)
+				log.Fatalf("could not remove generic object '%s'\n", entity)
 			}
 		}
 		if !viper.GetBool("no-save") {
@@ -51,7 +52,7 @@ var removeObjectCmd = withLocalFlags(&cobra.Command{
 	},
 }, "no-save")
 
-var listObjectsCmd = &cobra.Command{
+var listObjectsCmd = withLocalFlags(&cobra.Command{
 	Use:     "ls",
 	Args:    cobra.ExactArgs(0),
 	Short:   "Print a list of all generic objects in the current app",
@@ -59,11 +60,11 @@ var listObjectsCmd = &cobra.Command{
 	Example: "corectl object ls",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		items := internal.ListObjects(state.Ctx, state.Doc)
 		printer.PrintNamedItemsListWithType(items, viper.GetBool("bash"))
 	},
-}
+}, "quiet")
 
 var getObjectPropertiesCmd = withLocalFlags(&cobra.Command{
 	Use:     "properties <object-id>",
@@ -73,10 +74,10 @@ var getObjectPropertiesCmd = withLocalFlags(&cobra.Command{
 	Example: "corectl object properties OBJECT-ID",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.PrintGenericEntityProperties(state, args[0], "object", viper.GetBool("minimum"))
 	},
-}, "minimum")
+}, "minimum", "full")
 
 var getObjectLayoutCmd = &cobra.Command{
 	Use:     "layout <object-id>",
@@ -86,7 +87,7 @@ var getObjectLayoutCmd = &cobra.Command{
 	Example: "corectl object layout OBJECT-ID",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.PrintGenericEntityLayout(state, args[0], "object")
 	},
 }
@@ -99,7 +100,7 @@ var getObjectDataCmd = &cobra.Command{
 	Example: "corectl object data OBJECT-ID",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		printer.EvalObject(rootCtx, state.Doc, args[0])
 	},
 }

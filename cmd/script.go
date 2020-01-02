@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -17,12 +18,12 @@ var setScriptCmd = withLocalFlags(&cobra.Command{
 
 	Run: func(ccmd *cobra.Command, args []string) {
 
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, true, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, true, false)
 		scriptFile := args[0]
 		if scriptFile != "" {
 			internal.SetScript(rootCtx, state.Doc, scriptFile)
 		} else {
-			internal.FatalError("no loadscript (.qvs) file specified.")
+			log.Fatalln("no loadscript (.qvs) file specified.")
 		}
 		if !viper.GetBool("no-save") {
 			internal.Save(rootCtx, state.Doc)
@@ -38,10 +39,10 @@ var getScriptCmd = &cobra.Command{
 	Example: "corectl script get",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		script, err := state.Doc.GetScript(rootCtx)
 		if err != nil {
-			internal.FatalErrorf("could not retrieve script: %s", err)
+			log.Fatalf("could not retrieve script: %s\n", err)
 		}
 		if len(script) == 0 { // This happens if the script is set to an empty file
 			fmt.Println("The loadscript is empty")

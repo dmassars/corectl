@@ -3,11 +3,14 @@ package cmd
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/printer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -16,8 +19,10 @@ var headersMap = make(map[string]string)
 var explicitConfigFile = ""
 var explicitCertificatePath = ""
 var version = ""
+var commit = ""
+var branch = ""
 var headers http.Header
-var certificates *tls.Config
+var tlsClientConfig *tls.Config
 var rootCtx = context.Background()
 
 // rootCmd represents the base command when called without any subcommands
@@ -42,8 +47,14 @@ var rootCmd = &cobra.Command{
 		withContext := shouldUseContext(ccmd)
 		internal.ReadConfig(explicitConfigFile, explicitCertificatePath, withContext)
 
+		tlsClientConfig = &tls.Config{}
+
 		if certPath := viper.GetString("certificates"); certPath != "" {
-			certificates = internal.ReadCertificates(certPath)
+			tlsClientConfig = internal.ReadCertificates(tlsClientConfig, certPath)
+		}
+
+		if viper.GetBool("insecure") {
+			tlsClientConfig.InsecureSkipVerify = true
 		}
 
 		if len(headersMap) == 0 {
@@ -53,6 +64,11 @@ var rootCmd = &cobra.Command{
 		for key, value := range headersMap {
 			headers.Set(key, value)
 		}
+
+		headers.Set("User-Agent", fmt.Sprintf("corectl/%s (%s)", version, runtime.GOOS))
+
+		// Initiate the printers mode
+		printer.Init()
 	},
 
 	Run: func(ccmd *cobra.Command, args []string) {
@@ -77,7 +93,7 @@ func skipPreRun(ccmd *cobra.Command) bool {
 		return true
 	// For contexts we only want to do a prerun for context set.
 	case strings.Contains(path, "context"):
-		if strings.Contains(path, "context set") {
+		if strings.Contains(path, "context set") || strings.Contains(path, "context login") {
 			return false
 		}
 		return true
@@ -100,8 +116,10 @@ func shouldUseContext(ccmd *cobra.Command) bool {
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute(mainVersion string) {
+func Execute(mainVersion, branchName, commitSha string) {
 	version = mainVersion
+	branch = branchName
+	commit = commitSha
 	if err := rootCmd.Execute(); err != nil {
 		// Cobra already prints an error message so we just want to exit
 		os.Exit(1)

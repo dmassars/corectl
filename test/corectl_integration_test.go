@@ -3,9 +3,9 @@
 package test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/qlik-oss/corectl/test/toolkit"
@@ -87,12 +87,47 @@ func TestContextManagement(t *testing.T) {
 	p.ExpectIncludes("localhost:9076").Run("status")
 }
 
+func TestQuietCommands(t *testing.T) {
+	p := toolkit.Params{T: t, Config: "test/projects/quiet/corectl.yml", Engine: *toolkit.EngineStdIP, App: t.Name()}
+	cmds := []string{
+		"connection", "dimension", "measure",
+		"object", "state", "variable",
+	}
+	defer p.Reset()
+	p.ExpectOK().Run("build")
+	for _, cmd := range cmds {
+		out := p.ExpectOK().Run(cmd, "ls", "-q")
+		ids := bytes.Split(out, []byte("\n"))
+		for _, id := range ids {
+			if len(id) > 0 {
+				p.ExpectOK().Run(cmd, "rm", string(id))
+			}
+		}
+	}
+	// As the quiet flag trumps the traffic flag these two commands
+	// should be equal.
+	out1 := p.ExpectIncludes(t.Name()).Run("app", "ls", "-q")
+	out2 := p.ExpectOK().Run("app", "ls", "-q", "-t")
+	if string(out1) != string(out2) {
+		t.Error("Expected 'corectl app ls -q -t' to be equal to 'corectl app ls -q'")
+	}
+}
+
+func TestLogBuffer(t *testing.T) {
+	p := toolkit.Params{T: t, Config: "test/projects/quiet/corectl.yml", Engine: *toolkit.EngineStdIP, App: t.Name()}
+	p.ExpectOK().Run("context", "set", t.Name())
+	// The quiest flag should mute the warnings
+	p.ExpectEmptyOK().Run("app", "ls", "-q")
+	// We should have a warning saying something about context here
+	p.ExpectIncludes("context").Run("app", "ls")
+	p.ExpectOK().Run("context", "rm", t.Name())
+}
+
 func TestConnectionManagementCommands(t *testing.T) {
 	p := toolkit.Params{T: t, Config: "test/projects/using-entities/corectl.yml", Engine: *toolkit.EngineStdIP, App: t.Name()}
 	defer p.Reset()
 	p.Run("build")
 	p.ExpectIncludes(`myconnection | testconnector`).Run("connection", "ls")
-	p.ExpectIncludes(`"qConnectionString": "CUSTOM CONNECT TO \"provider=testconnector;host=corectl-test-connector;\""`).Run("connection", "ls", "--json")
 	p.ExpectOK().Run("connection", "ls", "--bash")
 }
 
@@ -143,7 +178,7 @@ func TestDimensionManagementCommands(t *testing.T) {
 
 	// Re-add the measure and check
 	p.ExpectOK().Run("dimension", "set", "test/projects/using-entities/dimensions.json")
-	p.ExpectJsonArray("qId", "dimension-xyz", "dimension-abcs").Run("dimension", "ls", "--json")
+	p.ExpectJsonArray("qId", "dimension-abcs", "dimension-xyz").Run("dimension", "ls", "--json")
 }
 
 func TestMeasureManagementCommands(t *testing.T) {
@@ -165,7 +200,7 @@ func TestMeasureManagementCommands(t *testing.T) {
 
 	// Re-add the measure and check
 	p.ExpectOK().Run("measure", "set", "test/projects/using-entities/measures.json")
-	p.ExpectJsonArray("qId", "measure-sum-numbers", "measure-count-numbers").Run("measure", "ls", "--json")
+	p.ExpectJsonArray("qId", "measure-count-numbers", "measure-sum-numbers").Run("measure", "ls", "--json")
 }
 
 func TestVariableManagementCommands(t *testing.T) {
@@ -221,7 +256,7 @@ func TestOpeningWithoutData(t *testing.T) {
 	p.ExpectIncludes(`{"qSessionState":"SESSION_CREATED"}`, "without data").Run("connection", "ls", "--no-data", "--verbose")
 
 	// Save objects in app opened without data
-	p.ExpectIncludes("Saving objects in app... Done").Run("build", "--no-data")
+	p.ExpectIncludes("Saving objects in app...", "App successfully saved").Run("build", "--no-data")
 }
 
 func TestScriptManagementCommands(t *testing.T) {
@@ -384,11 +419,33 @@ func TestChildObjectsAndFullPropertyTree(t *testing.T) {
 	p.ExpectGolden().Run("object", "ls", "--json")
 
 	// Remove the main object
-	p.ExpectIncludes("Saving app... Done").Run("object", "rm", "a699ee97-152d-4470-9655-ae7c82d71491")
+	p.ExpectIncludes("Saving app...", "App successfully saved").Run("object", "rm", "a699ee97-152d-4470-9655-ae7c82d71491")
 
 	// Verify that all three object are gone
 	p.ExpectEqual("[]").Run("object", "ls", "--json")
 
+}
+
+func TestGetFullPropertyTree(t *testing.T) {
+	p := toolkit.Params{T: t, Engine: *toolkit.EngineStdIP, Ttl: "0", App: t.Name()}
+	defer p.Reset()
+
+	// Build the app with an object with two children
+	p.ExpectOK().Run("build", "--objects=test/projects/nested-objects/sheet.json")
+
+	// List the objects and verify
+	p.ExpectGolden().Run("object", "properties", "a699ee97-152d-4470-9655-ae7c82d71491", "--full")
+}
+
+func TestGetFullPropertyTreeMinimum(t *testing.T) {
+	p := toolkit.Params{T: t, Engine: *toolkit.EngineStdIP, Ttl: "0", App: t.Name()}
+	defer p.Reset()
+
+	// Build the app with an object with two children
+	p.ExpectOK().Run("build", "--objects=test/projects/nested-objects/sheet.json")
+
+	// List the objects and verify
+	p.ExpectGolden().Run("object", "properties", "a699ee97-152d-4470-9655-ae7c82d71491", "--full", "--minimum")
 }
 
 func TestConnectionDefinitionVariations(t *testing.T) {
@@ -441,10 +498,6 @@ func TestCommandLineOverridingConfigFile(t *testing.T) {
 }
 
 func TestImportApp(t *testing.T) {
-	parseID := func(output []byte) string {
-		appID := strings.Split(string(output), ": ")[1]
-		return strings.TrimSpace(appID)
-	}
 	// Create tests for the standard, abac and jwt case.
 	pStd := toolkit.Params{T: t, Engine: *toolkit.EngineStdIP}
 	pAbac := toolkit.Params{T: t, Engine: *toolkit.EngineAbacIP}
@@ -452,10 +505,9 @@ func TestImportApp(t *testing.T) {
 	params := []toolkit.Params{pStd, pAbac, pJwt}
 	for _, p := range params {
 		// See if we can import the app test.qvf
-		output := p.ExpectOK().Run("app", "import", "test/projects/import/test.qvf")
-		appID := parseID(output)
+		output := p.ExpectOK().Run("app", "import", "test/projects/import/test.qvf", "-q")
 		// If it was created, we can remove it
-		p.ExpectOK().Run("app", "rm", appID, "--suppress")
+		p.ExpectOK().Run("app", "rm", string(output), "--suppress")
 		p.Reset()
 	}
 }
@@ -473,6 +525,7 @@ func TestUnbuild(t *testing.T) {
 	p2.ExpectGolden().Run("measure", "ls")
 	p2.ExpectGolden().Run("dimension", "ls")
 	p2.ExpectGolden().Run("meta")
+	p2.ExpectIncludes("\"qTitle\":\"Test Unbuild App\",\"qThumbnail\":{\"qUrl\":\"/appcontent/qUrl.jpeg\"}").Run("app", "ls", "--traffic")
 	os.RemoveAll("test/golden/unbuild")
 }
 
@@ -480,7 +533,7 @@ func TestAddState(t *testing.T) {
 	p := toolkit.Params{T: t, Engine: *toolkit.EngineStdIP, App: t.Name()}
 	defer p.Reset()
 	p.ExpectOK().Run("build")
-	p.ExpectIncludes("Saving app... Done").Run("state", "add", "MyTestState")
+	p.ExpectIncludes("Saving app...", "success").Run("state", "add", "MyTestState")
 	p.ExpectGolden().Run("state", "ls")
 	p.ExpectOK().Run("state", "rm", "MyTestState")
 	p.ExpectError().Run("state", "rm", "MyTestState")
@@ -499,6 +552,13 @@ func TestCertificatesPath(t *testing.T) {
 		p.ExpectOK().Run("context", "set", contextName)
 		p.ExpectIncludes(absolutePath).Run("context", "get", contextName)
 		p.ExpectOK().Run("context", "rm", contextName)
+		params := []toolkit.Params{pFlag, pConfig}
+		for _, p := range params {
+			defer p.Reset()
+			p.ExpectOK().Run("context", "set", contextName)
+			p.ExpectIncludes(absolutePath).Run("context", "get", contextName)
+			p.ExpectOK().Run("context", "rm", contextName)
+		}
 	}
 }
 
@@ -510,6 +570,6 @@ func TestCertificatesPathNegative(t *testing.T) {
 	params := []toolkit.Params{pFlagNoCerts, pConfigNoCerts, pInvalidPath}
 	for _, p := range params {
 		defer p.Reset()
-		p.ExpectErrorIncludes("ERROR Failed to load client certificate").Run("context", "set", "cert-test")
+		p.ExpectErrorIncludes("could not load client certificate").Run("context", "set", "cert-test")
 	}
 }

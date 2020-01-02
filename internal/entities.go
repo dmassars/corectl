@@ -2,31 +2,35 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/enigma-go"
 	"github.com/spf13/viper"
 )
 
 type (
+	// ParsedEntityListData struct
 	ParsedEntityListData struct {
 		Title string `json:"title"`
 	}
 
+	// NamedItem struct
 	NamedItem struct {
-		Id    string `json:"qId"`
+		ID    string `json:"qId"`
 		Title string `json:"title"`
 	}
 
+	// NamedItemWithType struct
 	NamedItemWithType struct {
-		Id    string `json:"qId"`
+		ID    string `json:"qId"`
 		Type  string `json:"qType,omitempty"`
 		Title string `json:"title"`
 	}
 
+	// PropsWithTitle struct
 	PropsWithTitle struct {
 		*enigma.GenericObjectProperties
 		Title string `json:"title"`
@@ -44,7 +48,7 @@ func getEntityPaths(commandLineGlobPattern string, configEntityParam string) ([]
 			return paths, err
 		}
 		if len(paths) == 0 {
-			fmt.Printf("Warning: no '%s' found for pattern %s\n", configEntityParam, commandLineGlobPattern)
+			log.Warnf("No '%s' found for pattern %s\n", configEntityParam, commandLineGlobPattern)
 		}
 	} else {
 		if ConfigDir == "" {
@@ -59,9 +63,9 @@ func getEntityPaths(commandLineGlobPattern string, configEntityParam string) ([]
 		for _, pattern := range globPatterns {
 			pathMatches, err = filepath.Glob(pattern)
 			if err != nil {
-				FatalErrorf("could not interpret glob pattern '%s': %s", pattern, err)
+				log.Fatalf("could not interpret glob pattern '%s': %s\n", pattern, err)
 			} else if len(pathMatches) == 0 {
-				fmt.Printf("Warning: no '%s' found for pattern %s\n", configEntityParam, pattern)
+				log.Warnf("No '%s' found for pattern %s\n", configEntityParam, pattern)
 			} else {
 				paths = append(paths, pathMatches...)
 			}

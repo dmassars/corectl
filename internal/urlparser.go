@@ -5,17 +5,19 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/spf13/viper"
 )
 
+// GetEngineURL gets QIX engine URL from viper
 func GetEngineURL() *url.URL {
 	engine := viper.GetString("engine")
 	if engine == "" {
-		FatalError("engine URL not specified")
+		log.Fatalln("engine URL not specified")
 	}
 	u, err := parseEngineURL(engine)
 	if err != nil {
-		FatalErrorf("could not parse engine url '%s' got error: '%s'", engine, err)
+		log.Fatalf("could not parse engine url '%s' got error: '%s'\n", engine, err)
 	}
 	return u
 }
@@ -89,8 +91,8 @@ func parseEngineURL(engine string) (*url.URL, error) {
 func buildWebSocketURL(ttl string) string {
 	u := GetEngineURL()
 	// Only modify the URL path if there is no path set
-	if u.Path == "" {
-		u.Path = "/app/corectl/ttl/" + ttl
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/app/engineData/ttl/" + ttl
 	}
 	return u.String()
 }
@@ -102,7 +104,7 @@ func TryParseAppFromURL(engineURL string) string {
 	values := re.FindStringSubmatch(engineURL)
 	if len(values) > 0 {
 		appName := values[1]
-		LogVerbose("Found app in engine url: " + appName)
+		log.Verboseln("Found app in engine url: " + appName)
 		return appName
 	}
 	return ""

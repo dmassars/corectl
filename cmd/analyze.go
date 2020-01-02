@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/browser"
 	"github.com/qlik-oss/corectl/internal"
+	"github.com/qlik-oss/corectl/internal/log"
 	"github.com/qlik-oss/corectl/printer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -20,9 +21,9 @@ var getAssociationsCmd = &cobra.Command{
 corectl associations`,
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		engine := internal.GetEngineURL()
-		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, certificates, false)
+		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, tlsClientConfig, false)
 		printer.PrintAssociations(data)
 	},
 }
@@ -36,9 +37,9 @@ var getTablesCmd = &cobra.Command{
 corectl tables --app=my-app.qvf`,
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		engine := internal.GetEngineURL()
-		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, certificates, false)
+		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, tlsClientConfig, false)
 		printer.PrintTables(data)
 	},
 }
@@ -52,9 +53,9 @@ var getMetaCmd = &cobra.Command{
 corectl meta --app my-app.qvf`,
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		engine := internal.GetEngineURL()
-		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, certificates, false)
+		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, tlsClientConfig, false)
 		printer.PrintMetadata(data)
 	},
 }
@@ -67,12 +68,12 @@ var getValuesCmd = &cobra.Command{
 	Example: "corectl values FIELD",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		internal.PrintFieldValues(rootCtx, state.Doc, args[0])
 	},
 }
 
-var getFieldsCmd = &cobra.Command{
+var getFieldsCmd = withLocalFlags(&cobra.Command{
 	Use:     "fields",
 	Args:    cobra.ExactArgs(0),
 	Short:   "Print field list",
@@ -80,12 +81,12 @@ var getFieldsCmd = &cobra.Command{
 	Example: "corectl fields",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		engine := internal.GetEngineURL()
-		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, certificates, false)
+		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, tlsClientConfig, false)
 		printer.PrintFields(data, false)
 	},
-}
+}, "quiet")
 
 var getKeysCmd = &cobra.Command{
 	Use:     "keys",
@@ -95,9 +96,9 @@ var getKeysCmd = &cobra.Command{
 	Example: "corectl keys",
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		engine := internal.GetEngineURL()
-		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, certificates, false)
+		data := internal.GetModelMetadata(rootCtx, state.Doc, state.AppID, engine, headers, tlsClientConfig, false)
 		printer.PrintFields(data, true)
 	},
 }
@@ -113,7 +114,7 @@ corectl eval "Avg(Sales)" by "Region" // returns the average of measure "Sales" 
 corectl eval by "Region" // Returns the values for dimension "Region"`,
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		internal.Eval(rootCtx, state.Doc, args)
 	},
 }
@@ -143,18 +144,18 @@ corectl catwalk --app my-app.qvf --catwalk-url http://localhost:8080`,
 			catwalkURL += "?engine_url=" + engineURL.String()
 		}
 		if appSpecified {
-			if ok, err := internal.AppExists(rootCtx, engine, appID, headers, certificates); !ok {
-				internal.FatalError(err)
+			if ok, err := internal.AppExists(rootCtx, engine, appID, headers, tlsClientConfig); !ok {
+				log.Fatalln(err)
 			}
 		}
 
 		if !strings.HasPrefix(catwalkURL, "www") && !strings.HasPrefix(catwalkURL, "https://") && !strings.HasPrefix(catwalkURL, "http://") {
-			internal.FatalErrorf("%s is not a valid url\nPlease provide a valid URL starting with 'https://', 'http://' or 'www'", catwalkURL)
+			log.Fatalf("%s is not a valid url\nPlease provide a valid URL starting with 'https://', 'http://' or 'www'\n", catwalkURL)
 		}
 
 		err := browser.OpenURL(catwalkURL)
 		if err != nil {
-			internal.FatalErrorf("could not open URL: %s", err)
+			log.Fatalf("could not open URL: %s\n", err)
 		}
 	},
 }, "catwalk-url")

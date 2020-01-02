@@ -13,7 +13,7 @@ import (
 var localFlags pflag.FlagSet
 var initialized bool
 
-// Default placeholder for unbuild folder location
+// DefaultUnbuildFolder is the placeholder for unbuild folder location
 var DefaultUnbuildFolder = "./<app name>-unbuild"
 
 // getPathFlagFromConfigFile returns a parameter from the config file.
@@ -55,6 +55,7 @@ func initGlobalFlags(globalFlags *pflag.FlagSet) {
 	globalFlags.Bool("bash", false, "Bash flag used to adapt output to bash completion format")
 	globalFlags.MarkHidden("bash")
 	globalFlags.String("context", "", "Name of the context used when connecting to Qlik Associative Engine")
+	globalFlags.Bool("insecure", false, "Enabling insecure will make it possible to connect using self signed certificates")
 
 	globalFlags.VisitAll(func(flag *pflag.Flag) {
 		viper.BindPFlag(flag.Name, flag)
@@ -91,7 +92,11 @@ func initLocalFlags() {
 	localFlags.Bool("suppress", false, "Suppress confirmation dialogue")
 	localFlags.String("catwalk-url", "https://catwalk.core.qlik.com", "Url to an instance of catwalk, if not provided the qlik one will be used")
 	localFlags.Bool("minimum", false, "Only print properties required by engine")
+	localFlags.Bool("full", false, "Using 'GetFullPropertyTree' to retrieve properties for children as well")
 	localFlags.String("comment", "", "Comment for the context")
+	localFlags.BoolP("quiet", "q", false, "Only print IDs. Useful for scripting")
+	localFlags.String("user", "", "Username to be used when logging in to Qlik Sense Enterprise")
+	localFlags.String("password", "", "Password to be used when logging in to Qlik Sense Enterprise (use with caution)")
 
 	localFlags.VisitAll(func(flag *pflag.Flag) {
 		viper.BindPFlag(flag.Name, flag)
@@ -106,6 +111,7 @@ func initLocalFlags() {
 	localFlags.String("measures", "", "A list of generic measures json paths")
 	localFlags.String("objects", "", "A list of generic object json paths")
 	localFlags.String("script", "", "Path to a qvs file containing the app data reload script")
+	localFlags.String("app-properties", "", "Path to a json file containing the app properties")
 	localFlags.String("dir", DefaultUnbuildFolder, "Path to a the folder where the unbuilt app is exported")
 
 	if runtime.GOOS != "windows" {

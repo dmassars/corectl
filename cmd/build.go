@@ -18,7 +18,7 @@ corectl build --connections ./myconnections.yml --script ./myscript.qvs`,
 
 	Run: func(ccmd *cobra.Command, args []string) {
 		ctx := rootCtx
-		state := internal.PrepareEngineState(ctx, headers, certificates, true, false)
+		state := internal.PrepareEngineState(ctx, headers, tlsClientConfig, true, false)
 
 		separateConnectionsFile := ccmd.Flag("connections").Value.String()
 		if separateConnectionsFile == "" {
@@ -37,6 +37,14 @@ corectl build --connections ./myconnections.yml --script ./myscript.qvs`,
 			internal.SetScript(ctx, state.Doc, scriptFile)
 		}
 
+		appProperties := ccmd.Flag("app-properties").Value.String()
+		if appProperties == "" {
+			appProperties = getPathFlagFromConfigFile("app-properties")
+		}
+		if appProperties != "" {
+			internal.SetAppProperties(ctx, state.Doc, appProperties)
+		}
+
 		if !viper.GetBool("no-reload") {
 			silent := viper.GetBool("silent")
 			limit := viper.GetInt("limit")
@@ -47,7 +55,7 @@ corectl build --connections ./myconnections.yml --script ./myscript.qvs`,
 			internal.Save(ctx, state.Doc)
 		}
 	},
-}, "script", "connections", "dimensions", "measures", "variables", "bookmarks", "objects", "no-reload", "silent", "no-save", "limit")
+}, "script", "app-properties", "connections", "dimensions", "measures", "variables", "bookmarks", "objects", "no-reload", "silent", "no-save", "limit")
 
 var reloadCmd = withLocalFlags(&cobra.Command{
 	Use:     "reload",
@@ -60,7 +68,7 @@ var reloadCmd = withLocalFlags(&cobra.Command{
 	},
 
 	Run: func(ccmd *cobra.Command, args []string) {
-		state := internal.PrepareEngineState(rootCtx, headers, certificates, false, false)
+		state := internal.PrepareEngineState(rootCtx, headers, tlsClientConfig, false, false)
 		silent := viper.GetBool("silent")
 		limit := viper.GetInt("limit")
 
